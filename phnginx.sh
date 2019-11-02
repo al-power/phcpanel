@@ -1,0 +1,113 @@
+#!/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+CWD="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+if [ ! -d /usr/local/cpanel ]; then
+        echo "### No se detectó cPanel, abortando ###"
+        exit 0
+fi
+
+configure_cloudflare()
+{ # CLOUDFLARE PATCH
+        echo "### Configurando Engintron ###"
+
+        echo "### Agregando IP para CloudFlare ###"
+        IP_COUNT=$(whmapi1 listips | grep "public_ip:" | cut -d':' -f2 | sed 's/ //' | grep -v "^169.*" | grep -v "^10.*" | grep -v "^192.168.*" | wc -l)
+        if [ "$IP_COUNT" -eq 1 ]; then
+                IP=$(whmapi1 listips | grep "public_ip:" | cut -d':' -f2 | sed 's/ //' | grep -v "^169.*" | grep -v "^10.*" | grep -v "^192.168.*")
+                sed -i '/^set \$PROXY_DOMAIN_OR_IP/d' /etc/nginx/custom_rules
+                printf "\nset \$PROXY_DOMAIN_OR_IP \"$IP\";" >> /etc/nginx/custom_rules
+        fi
+}
+
+configure_dynamic()
+{
+        echo "Configurando caché dinámico..."
+        sed -i "s/^proxy_cache_valid.*/proxy_cache_valid\t200 30s;/" /etc/nginx/proxy_params_dynamic
+}
+
+configure_nocacheoncookie()
+{
+        sed -i -e '/# DESHABILITA CACHE SI HAY COOKIE PHP/,+4d' /etc/nginx/custom_rules
+        printf "\n# DESHABILITA CACHE SI HAY COOKIE PHP\n" >> /etc/nginx/custom_rules
+        printf "if (\$http_cookie ~* \".*PHPSESSID.*|.*MoodleSession.*|.*MOODLEID.*|.*laravel_session.*|.*ci_session.*|SSESS.*|symfony|CAKEPHP\") {\n" >> /etc/nginx/custom_rules
+        printf "\tset \$CACHE_BYPASS_FOR_DYNAMIC 1;\n" >> /etc/nginx/custom_rules
+        printf "\tset \$EXPIRES_FOR_DYNAMIC 0;\n" >> /etc/nginx/custom_rules
+        printf "}\n" >> /etc/nginx/custom_rules
+}
+
+configure_apachelogs()
+{
+	CONFFILE="/usr/local/apache/conf/includes/pre_virtualhost_global.conf"
+	if [ -f /etc/apache2/conf.d/includes/pre_virtualhost_global.conf ]; then
+		CONFFILE="/etc/apache2/conf.d/includes/pre_virtualhost_global.conf"
+	fi
+	sed -i '/# INICIO FIX PARA AWSTATS-LOGS ENGINTRON/,/# FIN FIX PARA AWSTATS-LOGS ENGINTRON/d' $CONFFILE
+
+cat >> $CONFFILE << EOF
+# INICIO FIX PARA AWSTATS-LOGS ENGINTRON
+# NON-PIPED
+<IfModule log_config_module>
+	LogFormat "%a %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+</IfModule>
+# PIPED
+<IfModule mod_log_config.c>
+	LogFormat "%v:%p %a %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combinedvhost
+	LogFormat "%v:%p %a %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+	LogFormat "%v:%p %a %l %u %t \"%r\" %>s %b" common
+</IfModule>
+# FIN FIX PARA AWSTATS-LOGS ENGINTRON
+EOF
+	whmapi1 set_tweaksetting key=enable_piped_logs value=1
+	service httpd restart
+}
+
+configure_template_header_awstats()
+{
+	mkdir -p /var/cpanel/customizations/includes/
+cat > /var/cpanel/customizations/includes/awstats_page_header.html.tt << EOF
+<div class="alert alert-warning">
+        <span class="glyphicon glyphicon-warning-sign"></span>
+        <div class="alert-message">
+                <strong>INFO:</strong>
+		AWStats no funciona correctamente cuando el sistema de optimización (caché) del servidor está activo. Para estadísticas te recomendamos implementar <a href="https://analytics.google.com/analytics/web/" target="_blank">Google Analytics</a> en tu sitio web.
+        </div>
+</div>
+EOF
+}
+
+configure_access_log()
+{
+        sed -i 's/access_log.*\;$/access_log \/var\/log\/nginx\/access.log main;/' /etc/nginx/nginx.conf
+        sed -i '/log_format main/d' /etc/nginx/nginx.conf
+        sed -i "/access_log.*/i\ \ \ \ log_format main '\$remote_addr - \$remote_user \[\$time_local\] \"\$request\" \$status \$body_bytes_sent \"\$http_referer\" \"\$http_user_agent\" \"\$host\"';" /etc/nginx/nginx.conf
+}
+
+fix_logrotate()
+{
+        sed -i 's/create 640.*/create 640 nginx root/' /etc/logrotate.d/nginx
+}
+
+if [ -f /usr/local/src/publicnginx/nginxinstaller ]; then
+	echo "### NginxCP detectado, eliminando antes ###"
+	/usr/local/src/publicnginx/nginxinstaller uninstall
+	/script/rebuildhttpdconf
+	rm -rf /usr/local/src/publicnginx*
+fi
+
+cd /; rm -f engintron.sh; wget --no-check-certificate https://raw.githubusercontent.com/engintron/engintron/master/engintron.sh; bash engintron.sh install
+
+echo "### Configurando ###"
+configure_cloudflare
+configure_dynamic
+configure_nocacheoncookie
+configure_apachelogs
+configure_template_header_awstats
+configure_access_log
+fix_logrotate
+
+echo "### Reiniciando servicios ###"
+systemctl restart httpd
+systemctl restart nginx
+
+echo "### Realizado la instalcion ###"

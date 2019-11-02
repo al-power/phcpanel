@@ -26,7 +26,7 @@ case $opt in
       clear
         echo "Configurar cpanel y compilar apache"
         echo
-        ansible-playbook /playbook/remove.yml
+        phconf.sh
         echo "se ha terminado con la configurarcion cpanel y compilacion de apache"
         read -p "presione enter para continuar"
         ;;
@@ -34,7 +34,7 @@ case $opt in
       clear
         echo "instalacion y configuracion de nginx"
         echo
-        ansib
+        phnginx.sh
         echo "se ha terminado la instalacion y configuracion de nginx"
         read -p "presione enter para continuar"
         ;;

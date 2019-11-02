@@ -2,27 +2,10 @@
 #######
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 CWD="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-HOSTNAME=$(hostname -f)
-host=$(hostname -d)
-port=1295
-TIME="$(date +%F_%T)"
-PASSV_PORT="50000:50100";
-PASSV_MIN=$(echo $PASSV_PORT | cut -d':' -f1)
-PASSV_MAX=$(echo $PASSV_PORT | cut -d':' -f2)
 ISVPS=$(((dmidecode -t system 2>/dev/null | grep "Manufacturer" | grep -i 'VMware\|KVM\|Bochs\|Virtual\|HVM' > /dev/null) || [ -f /proc/vz/veinfo ]) && echo "SI" || echo "NO")
 #######
 clear
-#######
-###############
-echo -n "ingrese el correo para el servidor:"
-read mail
-###############
-echo -n ingrese la dns1:
-read dns1
-############
-echo -n ingrese la dns2:
-read dns2
-##############
+######
 
 echo "#################################"
 echo "#### Pre-Configurando Cpanel ####"
@@ -49,6 +32,9 @@ echo "#########################"
 echo "######### CSF ###########"
 echo "#########################"
 
+yum -y install iptables-services wget perl unzip net-tools perl-libwww-perl perl-LWP-Protocol-https perl-GDGraph
+
+sleep 5
 if [ ! -d /etc/csf ]; then
         echo "csf no detectado, descargando!"
 	touch /etc/sysconfig/iptables
@@ -63,9 +49,8 @@ fi
 echo "### Configurando CSF ###"
 
 cp /etc/csf/csf.conf cp /etc/csf/csf.conf.bak.$TIME 
-
+sleep 10
 yum remove firewalld -y
-yum -y install iptables-services wget perl unzip net-tools perl-libwww-perl perl-LWP-Protocol-https perl-GDGraph
 sed -i 's/^TESTING = .*/TESTING = "0"/g' /etc/csf/csf.conf
 sed -i 's/^RESTRICT_SYSLOG = "0"=/RESTRICT_SYSLOG = "3"/g' /etc/csf/csf.conf
 sed -i 's/^ICMP_IN = .*/ICMP_IN = "0"/g' /etc/csf/csf.conf
@@ -75,6 +60,7 @@ sed -i 's/^SAFECHAINUPDATE = .*/SAFECHAINUPDATE = "1"/g' /etc/csf/csf.conf
 sed -i 's/^CC_DENY = .*/CC_DENY = ""/g' /etc/csf/csf.conf
 sed -i 's/^CC_IGNORE = .*/CC_IGNORE = ""/g' /etc/csf/csf.conf
 sed -i 's/^SMTP_BLOCK = .*/SMTP_BLOCK = "1"/g' /etc/csf/csf.conf
+sed -i 's/^SMTP_PORTS = .*/SMTP_PORTS = "25,465,587"/g' /etc/csf/csf.conf
 sed -i 's/^LF_FTPD = .*/LF_FTPD = "30"/g' /etc/csf/csf.conf
 sed -i 's/^LF_SMTPAUTH = .*/LF_SMTPAUTH = "90"/g' /etc/csf/csf.conf
 sed -i 's/^LF_EXIMSYNTAX = .*/LF_EXIMSYNTAX = "0"/g' /etc/csf/csf.conf
@@ -152,11 +138,34 @@ CURR_CSF_OUT=$(grep "^TCP_OUT" /etc/csf/csf.conf | cut -d'=' -f2 | sed 's/\ //g'
 
 sed -i "s/^TCP_OUT.*/TCP_OUT = \"$CURR_CSF_OUT,$CPANEL_PORTS\"/" /etc/csf/csf.conf
 
+echo "Activando rango pasivo FTP..."
+# IPv4
+CURR_CSF_IN=$(grep "^TCP_IN" /etc/csf/csf.conf | cut -d'=' -f2 | sed 's/\ //g' | sed 's/\"//g' | sed "s/,$PASSV_PORT,/,/g" | sed "s/,$PASSV_PORT//g" | sed "s/$PASSV_PORT,//g" | sed "s/,,//g")
+sed -i "s/^TCP_IN.*/TCP_IN = \"$CURR_CSF_IN,$PASSV_PORT\"/" /etc/csf/csf.conf
+CURR_CSF_OUT=$(grep "^TCP_OUT" /etc/csf/csf.conf | cut -d'=' -f2 | sed 's/\ //g' | sed 's/\"//g' | sed "s/,$PASSV_PORT,/,/g" | sed "s/,$PASSV_PORT//g" | sed "s/$PASSV_PORT,//g" | sed "s/,,//g")
+sed -i "s/^TCP_OUT.*/TCP_OUT = \"$CURR_CSF_OUT,$PASSV_PORT\"/" /etc/csf/csf.conf
+
 echo "### Activando DYNDNS ###"
 sed -i 's/^DYNDNS = .*/DYNDNS = "300"/g' /etc/csf/csf.conf
 sed -i 's/^DYNDNS_IGNORE = .*/DYNDNS_IGNORE = "1"/g' /etc/csf/csf.conf
+
+echo "Agregando a csf.dyndns..."
+sed -i '/gmail.com/d' /etc/csf/csf.dyndns
+sed -i '/public.pyzor.org/d' /etc/csf/csf.dyndns
+echo "tcp|out|d=25|d=smtp.gmail.com" >> /etc/csf/csf.dyndns
+echo "tcp|out|d=465|d=smtp.gmail.com" >> /etc/csf/csf.dyndns
+echo "tcp|out|d=587|d=smtp.gmail.com" >> /etc/csf/csf.dyndns
+echo "tcp|out|d=995|d=imap.gmail.com" >> /etc/csf/csf.dyndns
+echo "tcp|out|d=993|d=imap.gmail.com" >> /etc/csf/csf.dyndns
+echo "tcp|out|d=143|d=imap.gmail.com" >> /etc/csf/csf.dyndns
+echo "udp|out|d=24441|d=public.pyzor.org" >> /etc/csf/csf.dyndns
 
 echo "### reinicio de csf ###"
 csf -r
 service lfd restart
 
+echo "### verificacion de licencia de cpanel ###"
+ISLICENCED=$(/usr/local/cpanel/cpkeyclt 2>&1 | grep "Update succeeded" > /dev/null && echo OK || echo FAIL)
+if [ "$ISLICENCED" = "FAIL" ]; then
+	echo "Existe un problema con la licencia, verificala y luego ejecutá el script nuevamente. Despues eliga la opcion 3"
+fi
