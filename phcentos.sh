@@ -13,7 +13,7 @@ hostnamectl set-hostname $host1
 echo "### Actualizando Sistema Operativo ###"
 yum update -y
 yum groupinstall "Base" --skip-broken -y
-yum install screen -y
+yum install screen  wget perl unzip net-tools  -y
 sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/sysconfig/selinux
 sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config
 /usr/sbin/setenforce 0
