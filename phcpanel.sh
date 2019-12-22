@@ -17,6 +17,7 @@ sleep 5
 systemctl stop NetworkManager.service
 systemctl disable NetworkManager.service
 yum erase NetworkManager -y
+yum remove firewalld -y
 
 echo "### instalando cpanel ###"
 if [ -f /usr/local/cpanel/cpanel ]; then
@@ -48,11 +49,9 @@ echo "### Configurando CSF ###"
 
 cp /etc/csf/csf.conf /etc/csf/csf.conf.bak
 sleep 10
-yum remove firewalld -y
-yum -y install iptables-services wget perl unzip net-tools perl-libwww-perl perl-LWP-Protocol-https perl-GDGraph --skip-broken
+yum -y install iptables-services perl-libwww-perl perl-LWP-Protocol-https perl-GDGraph --skip-broken
 
 sed -i 's/^TESTING = .*/TESTING = "0"/g' /etc/csf/csf.conf
-sed -i 's/^RESTRICT_SYSLOG = "0"/RESTRICT_SYSLOG = "3"/g' /etc/csf/csf.conf
 sed -i 's/^IPV6 = .*/IPV6 = "0"/g' /etc/csf/csf.conf
 sed -i 's/^DENY_IP_LIMIT = .*/DENY_IP_LIMIT = "400"/g' /etc/csf/csf.conf
 sed -i 's/^SAFECHAINUPDATE = .*/SAFECHAINUPDATE = "1"/g' /etc/csf/csf.conf
