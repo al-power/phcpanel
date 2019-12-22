@@ -32,7 +32,7 @@ echo "#########################"
 echo "######### CSF ###########"
 echo "#########################"
 
-yum -y install iptables-services wget perl unzip net-tools perl-libwww-perl perl-LWP-Protocol-https perl-GDGraph
+yum -y install iptables-services wget perl unzip net-tools perl-libwww-perl perl-LWP-Protocol-https perl-GDGraph --skip-broken
 
 sleep 5
 if [ ! -d /etc/csf ]; then
@@ -48,11 +48,11 @@ fi
 
 echo "### Configurando CSF ###"
 
-cp /etc/csf/csf.conf cp /etc/csf/csf.conf.bak.$TIME 
+cp /etc/csf/csf.conf /etc/csf/csf.conf.bak
 sleep 10
 yum remove firewalld -y
 sed -i 's/^TESTING = .*/TESTING = "0"/g' /etc/csf/csf.conf
-sed -i 's/^RESTRICT_SYSLOG = "0"=/RESTRICT_SYSLOG = "3"/g' /etc/csf/csf.conf
+sed -i 's/^RESTRICT_SYSLOG = "0"/RESTRICT_SYSLOG = "3"/g' /etc/csf/csf.conf
 sed -i 's/^ICMP_IN = .*/ICMP_IN = "0"/g' /etc/csf/csf.conf
 sed -i 's/^IPV6 = .*/IPV6 = "0"/g' /etc/csf/csf.conf
 sed -i 's/^DENY_IP_LIMIT = .*/DENY_IP_LIMIT = "400"/g' /etc/csf/csf.conf
@@ -161,9 +161,10 @@ echo "tcp|out|d=143|d=imap.gmail.com" >> /etc/csf/csf.dyndns
 echo "udp|out|d=24441|d=public.pyzor.org" >> /etc/csf/csf.dyndns
 
 echo "### reinicio de csf ###"
+csf -e
 csf -r
-service lfd restart
 
+clear
 echo "### verificacion de licencia de cpanel ###"
 ISLICENCED=$(/usr/local/cpanel/cpkeyclt 2>&1 | grep "Update succeeded" > /dev/null && echo OK || echo FAIL)
 if [ "$ISLICENCED" = "FAIL" ]; then
