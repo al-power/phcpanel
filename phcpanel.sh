@@ -32,8 +32,6 @@ echo "#########################"
 echo "######### CSF ###########"
 echo "#########################"
 
-yum -y install iptables-services wget perl unzip net-tools perl-libwww-perl perl-LWP-Protocol-https perl-GDGraph --skip-broken
-
 sleep 5
 if [ ! -d /etc/csf ]; then
         echo "csf no detectado, descargando!"
@@ -51,9 +49,10 @@ echo "### Configurando CSF ###"
 cp /etc/csf/csf.conf /etc/csf/csf.conf.bak
 sleep 10
 yum remove firewalld -y
+yum -y install iptables-services wget perl unzip net-tools perl-libwww-perl perl-LWP-Protocol-https perl-GDGraph --skip-broken
+
 sed -i 's/^TESTING = .*/TESTING = "0"/g' /etc/csf/csf.conf
 sed -i 's/^RESTRICT_SYSLOG = "0"/RESTRICT_SYSLOG = "3"/g' /etc/csf/csf.conf
-sed -i 's/^ICMP_IN = .*/ICMP_IN = "0"/g' /etc/csf/csf.conf
 sed -i 's/^IPV6 = .*/IPV6 = "0"/g' /etc/csf/csf.conf
 sed -i 's/^DENY_IP_LIMIT = .*/DENY_IP_LIMIT = "400"/g' /etc/csf/csf.conf
 sed -i 's/^SAFECHAINUPDATE = .*/SAFECHAINUPDATE = "1"/g' /etc/csf/csf.conf
@@ -133,17 +132,12 @@ EOF
 
 echo "### Abriendo puertos en CSF para TCP_OUT migraciones cPanel ###"
 
-CPANEL_PORTS="2082,2083"
-CURR_CSF_OUT=$(grep "^TCP_OUT" /etc/csf/csf.conf | cut -d'=' -f2 | sed 's/\ //g' | sed 's/\"//g' | sed "s/,$CPANEL_PORTS,/,/g" | sed "s/,$CPANEL_PORTS//g" | sed "s/$CPANEL_PORTS,//g" | sed "s/,,//g")
-
-sed -i "s/^TCP_OUT.*/TCP_OUT = \"$CURR_CSF_OUT,$CPANEL_PORTS\"/" /etc/csf/csf.conf
-
-echo "Activando rango pasivo FTP..."
 # IPv4
 CURR_CSF_IN=$(grep "^TCP_IN" /etc/csf/csf.conf | cut -d'=' -f2 | sed 's/\ //g' | sed 's/\"//g' | sed "s/,$PASSV_PORT,/,/g" | sed "s/,$PASSV_PORT//g" | sed "s/$PASSV_PORT,//g" | sed "s/,,//g")
 sed -i "s/^TCP_IN.*/TCP_IN = \"$CURR_CSF_IN,$PASSV_PORT\"/" /etc/csf/csf.conf
 CURR_CSF_OUT=$(grep "^TCP_OUT" /etc/csf/csf.conf | cut -d'=' -f2 | sed 's/\ //g' | sed 's/\"//g' | sed "s/,$PASSV_PORT,/,/g" | sed "s/,$PASSV_PORT//g" | sed "s/$PASSV_PORT,//g" | sed "s/,,//g")
 sed -i "s/^TCP_OUT.*/TCP_OUT = \"$CURR_CSF_OUT,$PASSV_PORT\"/" /etc/csf/csf.conf
+
 
 echo "### Activando DYNDNS ###"
 sed -i 's/^DYNDNS = .*/DYNDNS = "300"/g' /etc/csf/csf.conf
@@ -159,6 +153,12 @@ echo "tcp|out|d=995|d=imap.gmail.com" >> /etc/csf/csf.dyndns
 echo "tcp|out|d=993|d=imap.gmail.com" >> /etc/csf/csf.dyndns
 echo "tcp|out|d=143|d=imap.gmail.com" >> /etc/csf/csf.dyndns
 echo "udp|out|d=24441|d=public.pyzor.org" >> /etc/csf/csf.dyndns
+
+echo "Abriendo puertos en CSF para TCP_OUT migraciones cPanel..."
+CPANEL_PORTS="2082,2083"
+CURR_CSF_OUT=$(grep "^TCP_OUT" /etc/csf/csf.conf | cut -d'=' -f2 | sed 's/\ //g' | sed 's/\"//g' | sed "s/,$CPANEL_PORTS,/,/g" | sed "s/,$CPANEL_PORTS//g" | sed "s/$CPANEL_PORTS,//g" | sed "s/,,//g")
+sed -i "s/^TCP_OUT.*/TCP_OUT = \"$CURR_CSF_OUT,$CPANEL_PORTS\"/" /etc/csf/csf.conf
+
 
 echo "### reinicio de csf ###"
 csf -e
