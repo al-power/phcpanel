@@ -2,7 +2,10 @@
 #######
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 CWD="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-ISVPS=$(((dmidecode -t system 2>/dev/null | grep "Manufacturer" | grep -i 'VMware\|KVM\|Bochs\|Virtual\|HVM' > /dev/null) || [ -f /proc/vz/veinfo ]) && echo "SI" || echo "NO")
+PASSV_MIN=$(echo $PASSV_PORT | cut -d':' -f1)
+PASSV_MAX=$(echo $PASSV_PORT | cut -d':' -f2)
+ISVPS=$(((dmidecode -t system 2>/dev/null | grep "Manufacturer" | grep -i 'VMware\|KVM\|Bochs\|Virtual\|HVM' > /dev/null) || [ -f /proc/vz/veinfo ]) && echo "SI" || echo "NO")i
+
 #######
 clear
 ######
@@ -52,6 +55,7 @@ sleep 10
 yum -y install iptables-services perl-libwww-perl perl-LWP-Protocol-https perl-GDGraph --skip-broken
 
 sed -i 's/^TESTING = .*/TESTING = "0"/g' /etc/csf/csf.conf
+sed -i 's/^RESTRICT_SYSLOG = "0"/RESTRICT_SYSLOG = "3"/g' /etc/csf/csf.conf
 sed -i 's/^IPV6 = .*/IPV6 = "0"/g' /etc/csf/csf.conf
 sed -i 's/^DENY_IP_LIMIT = .*/DENY_IP_LIMIT = "400"/g' /etc/csf/csf.conf
 sed -i 's/^SAFECHAINUPDATE = .*/SAFECHAINUPDATE = "1"/g' /etc/csf/csf.conf
@@ -153,10 +157,10 @@ echo "tcp|out|d=993|d=imap.gmail.com" >> /etc/csf/csf.dyndns
 echo "tcp|out|d=143|d=imap.gmail.com" >> /etc/csf/csf.dyndns
 echo "udp|out|d=24441|d=public.pyzor.org" >> /etc/csf/csf.dyndns
 
-echo "Abriendo puertos en CSF para TCP_OUT migraciones cPanel..."
-CPANEL_PORTS="2082,2083"
-CURR_CSF_OUT=$(grep "^TCP_OUT" /etc/csf/csf.conf | cut -d'=' -f2 | sed 's/\ //g' | sed 's/\"//g' | sed "s/,$CPANEL_PORTS,/,/g" | sed "s/,$CPANEL_PORTS//g" | sed "s/$CPANEL_PORTS,//g" | sed "s/,,//g")
-sed -i "s/^TCP_OUT.*/TCP_OUT = \"$CURR_CSF_OUT,$CPANEL_PORTS\"/" /etc/csf/csf.conf
+#echo "Abriendo puertos en CSF para TCP_OUT migraciones cPanel..."
+#CPANEL_PORTS="2082,2083"
+#CURR_CSF_OUT=$(grep "^TCP_OUT" /etc/csf/csf.conf | cut -d'=' -f2 | sed 's/\ //g' | sed 's/\"//g' | sed "s/,$CPANEL_PORTS,/,/g" | sed "s/,$CPANEL_PORTS//g" | sed "s/$CPANEL_PORTS,//g" | sed "s/,,//g")
+#sed -i "s/^TCP_OUT.*/TCP_OUT = \"$CURR_CSF_OUT,$CPANEL_PORTS\"/" /etc/csf/csf.conf
 
 
 echo "### reinicio de csf ###"
@@ -167,5 +171,8 @@ clear
 echo "### verificacion de licencia de cpanel ###"
 ISLICENCED=$(/usr/local/cpanel/cpkeyclt 2>&1 | grep "Update succeeded" > /dev/null && echo OK || echo FAIL)
 if [ "$ISLICENCED" = "FAIL" ]; then
-	echo "Existe un problema con la licencia, verificala y luego ejecutá el script nuevamente. Despues eliga la opcion 3"
+	echo "Existe un problema con la licencia, verificala y luego ejecutá el script nuevamente. Despues eliga la opcion 2"
+else
+       echo "Se realizara la configuracion de cpanel"
+       sh phconf.sh
 fi
